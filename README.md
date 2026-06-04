@@ -4,7 +4,7 @@ Structured Problem-Solution Knowledge Store with SQLite+FTS5 and Confidence-Gati
 
 ## Status
 
-Sprint X, in Planung.
+Sprint X, in planning.
 
 ## Installation
 
@@ -12,7 +12,7 @@ Sprint X, in Planung.
 bun install @four-bytes/four-opencode-knowledge
 ```
 
-## Konfiguration
+## Configuration
 
 ```typescript
 // opencode.config.ts
@@ -27,6 +27,6 @@ export default {
 
 <!-- TODO: Add usage examples -->
 
-## Lizenz
+## License
 
-Apache-2.0 —siehe [LICENSE](../LICENSE)
+Apache-2.0 — see [LICENSE](../LICENSE)
