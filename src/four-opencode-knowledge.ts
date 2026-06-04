@@ -199,7 +199,7 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
           description: (args.description as string) ?? "",
           root_cause: (args.root_cause as string) ?? null,
           canonical_solution: (args.canonical_solution as string) ?? null,
-          entity_type: ((args.entity_type as string) ?? "problem") as any,
+          entity_type: ((args.entity_type as string) ?? "problem") as 'problem'|'pattern'|'convention'|'decision'|'observation'|'fix'|'summary',
           confidence: (args.confidence as number) ?? 0.0,
           review_state:
             ((args.review_state as string) as
@@ -290,8 +290,6 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
       description: tool.schema.string(),
       kind: tool.schema.string().optional(),
       tags: tool.schema.string().optional(),
-      project_ref: tool.schema.string().optional(),
-      issue_ref: tool.schema.string().optional(),
     },
     async execute(args, _toolCtx) {
       const entryKey = (args.title as string).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -303,7 +301,7 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
         description: (args.description as string) ?? '',
         root_cause: null,
         canonical_solution: null,
-        entity_type: entityType as any,
+        entity_type: entityType as 'problem'|'pattern'|'convention'|'decision'|'observation'|'fix'|'summary',
         confidence: 0.0,
         review_state: 'draft',
         superseded_by: null,
