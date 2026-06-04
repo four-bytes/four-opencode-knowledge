@@ -212,7 +212,7 @@ class KnowledgeDb {
         canonical_solution TEXT,
         confidence REAL NOT NULL DEFAULT 0.0 CHECK(confidence >= 0.0 AND confidence <= 1.0),
         review_state TEXT NOT NULL DEFAULT 'draft' CHECK(review_state IN ('draft','reviewed','accepted','rejected','superseded')),
-        superseded_by TEXT REFERENCES problems(problem_key),
+        superseded_by TEXT,
         tags TEXT DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
