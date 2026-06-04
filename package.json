@@ -1,7 +1,7 @@
 {
   "name": "@four-bytes/four-opencode-knowledge",
   "version": "0.1.0",
-  "description": "Structured Problem-Solution Knowledge Store with SQLite+FTS5 and Confidence-Gating for OpenCode agents",
+  "description": "General-Purpose Knowledge Base with SQLite+FTS5 and Confidence-Gating for OpenCode agents — captures problems, patterns, conventions, decisions, observations, fixes, and summaries.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "dist/four-opencode-knowledge.js",
