@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import KnowledgeDb, { type ProblemEntry } from "../db.js";
+import KnowledgeDb, { type KnowledgeEntry } from "../db.js";
 import { unlinkSync } from "node:fs";
 
 describe("KnowledgeDb", () => {
@@ -21,49 +21,55 @@ describe("KnowledgeDb", () => {
   // 1. Schema creation
   test("creates all tables on init", () => {
     const stats = db.getStats();
-    expect(stats.total_problems).toBe(0);
+    expect(stats.total_entries).toBe(0);
   });
 
-  // 2. addProblem - insert new entry
-  test("addProblem inserts a new entry", () => {
-    db.addProblem({
-      problem_key: "config-not-loading",
+  // 2. addEntry - insert new entry
+  test("addEntry inserts a new entry", () => {
+    db.addEntry({
+      entry_key: "config-not-loading",
       kind: "dev",
-      problem: "Plugin config file is not loaded at startup",
+      title: "Plugin config file is not loaded at startup",
+      description: "",
       root_cause: "Hook order dependency",
       canonical_solution: "Use lazy-loading pattern for config",
+      entity_type: "problem",
       confidence: 0.85,
       review_state: "accepted",
       superseded_by: null,
       tags: "plugin,config,startup",
     });
-    const entry = db.getProblem("config-not-loading", "dev");
+    const entry = db.getEntry("config-not-loading", "dev");
     expect(entry).not.toBeNull();
-    expect(entry!.problem).toBe("Plugin config file is not loaded at startup");
+    expect(entry!.title).toBe("Plugin config file is not loaded at startup");
     expect(entry!.confidence).toBe(0.85);
     expect(entry!.review_state).toBe("accepted");
   });
 
-  // 3. addProblem - confidence gate blocks lower confidence
-  test("addProblem blocks lower confidence update", () => {
-    db.addProblem({
-      problem_key: "gate-test",
+  // 3. addEntry - confidence gate blocks lower confidence
+  test("addEntry blocks lower confidence update", () => {
+    db.addEntry({
+      entry_key: "gate-test",
       kind: "dev",
-      problem: "original",
+      title: "original",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.9,
       review_state: "accepted",
       superseded_by: null,
       tags: "",
     });
     expect(() => {
-      db.addProblem({
-        problem_key: "gate-test",
+      db.addEntry({
+        entry_key: "gate-test",
         kind: "dev",
-        problem: "weaker attempt",
+        title: "weaker attempt",
+        description: "",
         root_cause: null,
         canonical_solution: null,
+        entity_type: "problem",
         confidence: 0.5,
         review_state: "draft",
         superseded_by: null,
@@ -72,137 +78,155 @@ describe("KnowledgeDb", () => {
     }).toThrow("CONFIDENCE_GATE");
   });
 
-  // 4. addProblem - higher confidence overwrites
-  test("addProblem allows higher confidence update", () => {
-    db.addProblem({
-      problem_key: "upgrade-test",
+  // 4. addEntry - higher confidence overwrites
+  test("addEntry allows higher confidence update", () => {
+    db.addEntry({
+      entry_key: "upgrade-test",
       kind: "dev",
-      problem: "old solution",
+      title: "old solution",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.6,
       review_state: "draft",
       superseded_by: null,
       tags: "",
     });
-    db.addProblem({
-      problem_key: "upgrade-test",
+    db.addEntry({
+      entry_key: "upgrade-test",
       kind: "dev",
-      problem: "better solution",
+      title: "better solution",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.9,
       review_state: "accepted",
       superseded_by: null,
       tags: "",
     });
-    const entry = db.getProblem("upgrade-test", "dev");
-    expect(entry!.problem).toBe("better solution");
+    const entry = db.getEntry("upgrade-test", "dev");
+    expect(entry!.title).toBe("better solution");
     expect(entry!.confidence).toBe(0.9);
   });
 
   // 5. FTS5 search
-  test("findProblems returns FTS5 matches", () => {
-    db.addProblem({
-      problem_key: "fts1",
+  test("findEntries returns FTS5 matches", () => {
+    db.addEntry({
+      entry_key: "fts1",
       kind: "dev",
-      problem: "TypeScript compilation fails with strict mode",
+      title: "TypeScript compilation fails with strict mode",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.8,
       review_state: "accepted",
       superseded_by: null,
       tags: "typescript,compiler",
     });
-    db.addProblem({
-      problem_key: "fts2",
+    db.addEntry({
+      entry_key: "fts2",
       kind: "devops",
-      problem: "Docker build fails on CI",
+      title: "Docker build fails on CI",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.7,
       review_state: "draft",
       superseded_by: null,
       tags: "docker,ci",
     });
-    const results = db.findProblems({ query: "typescript compilation", limit: 10 });
+    const results = db.findEntries({ query: "typescript compilation", limit: 10 });
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0].problem_key).toBe("fts1");
+    expect(results[0].entry_key).toBe("fts1");
   });
 
-  // 6. findProblems with kind filter
-  test("findProblems filters by kind", () => {
-    db.addProblem({
-      problem_key: "kind-dev",
+  // 6. findEntries with kind filter
+  test("findEntries filters by kind", () => {
+    db.addEntry({
+      entry_key: "kind-dev",
       kind: "dev",
-      problem: "dev problem",
+      title: "dev problem",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.5,
       review_state: "draft",
       superseded_by: null,
       tags: "",
     });
-    db.addProblem({
-      problem_key: "kind-devops",
+    db.addEntry({
+      entry_key: "kind-devops",
       kind: "devops",
-      problem: "devops problem",
+      title: "devops problem",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.5,
       review_state: "draft",
       superseded_by: null,
       tags: "",
     });
-    const results = db.findProblems({ kind: "devops", limit: 10 });
+    const results = db.findEntries({ kind: "devops", limit: 10 });
     expect(results.length).toBe(1);
     expect(results[0].kind).toBe("devops");
   });
 
-  // 7. findProblems with confidence_min filter
-  test("findProblems filters by confidence_min", () => {
-    db.addProblem({
-      problem_key: "low-conf",
+  // 7. findEntries with confidence_min filter
+  test("findEntries filters by confidence_min", () => {
+    db.addEntry({
+      entry_key: "low-conf",
       kind: "dev",
-      problem: "low confidence",
+      title: "low confidence",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.3,
       review_state: "draft",
       superseded_by: null,
       tags: "",
     });
-    db.addProblem({
-      problem_key: "high-conf",
+    db.addEntry({
+      entry_key: "high-conf",
       kind: "dev",
-      problem: "high confidence",
+      title: "high confidence",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.9,
       review_state: "accepted",
       superseded_by: null,
       tags: "",
     });
-    const results = db.findProblems({ confidence_min: 0.8, limit: 10 });
+    const results = db.findEntries({ confidence_min: 0.8, limit: 10 });
     expect(results.length).toBe(1);
-    expect(results[0].problem_key).toBe("high-conf");
+    expect(results[0].entry_key).toBe("high-conf");
   });
 
   // 8. Occurrence tracking
   test("addOccurrence and getOccurrences work", () => {
-    db.addProblem({
-      problem_key: "occ-test",
+    db.addEntry({
+      entry_key: "occ-test",
       kind: "dev",
-      problem: "test",
+      title: "test",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.5,
       review_state: "draft",
       superseded_by: null,
       tags: "",
     });
     db.addOccurrence({
-      problem_key: "occ-test",
+      entry_key: "occ-test",
       kind: "dev",
       outcome: "failed",
       observed_symptoms: "still crashes",
@@ -212,7 +236,7 @@ describe("KnowledgeDb", () => {
       commit_ref: null,
     });
     db.addOccurrence({
-      problem_key: "occ-test",
+      entry_key: "occ-test",
       kind: "dev",
       outcome: "fixed",
       observed_symptoms: null,
@@ -229,102 +253,115 @@ describe("KnowledgeDb", () => {
 
   // 9. Revision history
   test("revisions are recorded on update", () => {
-    db.addProblem({
-      problem_key: "rev-test",
+    db.addEntry({
+      entry_key: "rev-test",
       kind: "dev",
-      problem: "v1",
+      title: "v1",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.5,
       review_state: "draft",
       superseded_by: null,
       tags: "",
     });
-    db.updateProblem("rev-test", "dev", { problem: "v2", confidence: 0.7 });
+    db.updateEntry("rev-test", "dev", { title: "v2", confidence: 0.7 });
     const revs = db.getRevisionHistory("rev-test", "dev");
     expect(revs.length).toBeGreaterThan(0);
-    const problemRev = revs.find((r) => r.field_name === "problem");
-    expect(problemRev).toBeDefined();
-    expect(problemRev!.old_value).toBe("v1");
-    expect(problemRev!.new_value).toBe("v2");
+    const titleRev = revs.find((r) => r.field_name === "title");
+    expect(titleRev).toBeDefined();
+    expect(titleRev!.old_value).toBe("v1");
+    expect(titleRev!.new_value).toBe("v2");
   });
 
   // 10. getStats
   test("getStats returns correct counts", () => {
-    db.addProblem({
-      problem_key: "stats1",
+    db.addEntry({
+      entry_key: "stats1",
       kind: "dev",
-      problem: "a",
+      title: "a",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.8,
       review_state: "accepted",
       superseded_by: null,
       tags: "",
     });
-    db.addProblem({
-      problem_key: "stats2",
+    db.addEntry({
+      entry_key: "stats2",
       kind: "devops",
-      problem: "b",
+      title: "b",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.4,
       review_state: "draft",
       superseded_by: null,
       tags: "",
     });
-    db.addProblem({
-      problem_key: "stats3",
+    db.addEntry({
+      entry_key: "stats3",
       kind: "testing",
-      problem: "c",
+      title: "c",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.6,
       review_state: "draft",
       superseded_by: null,
       tags: "",
     });
     const stats = db.getStats();
-    expect(stats.total_problems).toBe(3);
+    expect(stats.total_entries).toBe(3);
     expect(stats.accepted_count).toBe(1);
     expect(stats.draft_count).toBe(2);
     expect(stats.avg_confidence).toBeCloseTo((0.8 + 0.4 + 0.6) / 3);
+    expect(stats.by_entity_type["problem"]).toBe(3);
   });
 
-  // 11. supersede marks entry as superseded
-  test("supersede marks entry with superseded status", () => {
-    db.addProblem({
-      problem_key: "old-solution",
+  // 11. supersedeEntry marks entry as superseded
+  test("supersedeEntry marks entry with superseded status", () => {
+    db.addEntry({
+      entry_key: "old-solution",
       kind: "dev",
-      problem: "old way",
+      title: "old way",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.8,
       review_state: "accepted",
       superseded_by: null,
       tags: "",
     });
-    db.supersede("old-solution", "dev", "new-solution");
-    const entry = db.getProblem("old-solution", "dev");
+    db.supersedeEntry("old-solution", "dev", "new-solution");
+    const entry = db.getEntry("old-solution", "dev");
     expect(entry!.review_state).toBe("superseded");
     expect(entry!.superseded_by).toBe("new-solution");
   });
 
   // 12. Review-state gate: cannot regress
-  test("updateProblem blocks review state regression", () => {
-    db.addProblem({
-      problem_key: "review-gate",
+  test("updateEntry blocks review state regression", () => {
+    db.addEntry({
+      entry_key: "review-gate",
       kind: "dev",
-      problem: "test",
+      title: "test",
+      description: "",
       root_cause: null,
       canonical_solution: null,
+      entity_type: "problem",
       confidence: 0.8,
       review_state: "accepted",
       superseded_by: null,
       tags: "",
     });
     expect(() => {
-      db.updateProblem("review-gate", "dev", { review_state: "draft" });
+      db.updateEntry("review-gate", "dev", { review_state: "draft" });
     }).toThrow("REVIEW_GATE");
   });
 });
