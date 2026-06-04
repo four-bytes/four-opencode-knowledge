@@ -248,6 +248,7 @@ class KnowledgeDb {
   private static migrateFromProblems(db: Database): void {
     db.run("PRAGMA foreign_keys = OFF");
 
+    const tx = db.transaction(() => {
     db.run(`
       CREATE TABLE entries (
         entry_key TEXT NOT NULL,
@@ -332,6 +333,8 @@ class KnowledgeDb {
 
     // Populate FTS from existing data
     db.run("INSERT INTO entries_fts(entries_fts) VALUES ('rebuild')");
+    });
+    tx();
 
     db.run("PRAGMA foreign_keys = ON");
   }
