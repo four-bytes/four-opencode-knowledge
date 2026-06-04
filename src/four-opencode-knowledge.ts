@@ -3,7 +3,7 @@ import type { Plugin } from "@opencode-ai/plugin";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
-import KnowledgeDb, { type FindProblemsFilter, type ProblemEntry } from "./db.js";
+import KnowledgeDb, { type FindEntriesFilter, type KnowledgeEntry } from "./db.js";
 import { logDebugEvent } from "./debug-logger.js";
 import pkg from "../package.json";
 
@@ -40,14 +40,14 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
     },
     async execute(args, _toolCtx) {
       return JSON.stringify(
-        db.findProblems({
+        db.findEntries({
           query: args.query as string,
           kind: args.kind as string | undefined,
           confidence_min: args.confidence_min as number | undefined,
           review_state: args.review_state as string | undefined,
           limit: args.limit as number | undefined,
           offset: args.offset as number | undefined,
-          orderBy: (args.orderBy as FindProblemsFilter["orderBy"]) ?? "relevance",
+          orderBy: (args.orderBy as FindEntriesFilter["orderBy"]) ?? "relevance",
         }),
         null,
         2,
@@ -65,7 +65,7 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
       kind: tool.schema.string(),
     },
     async execute(args, _toolCtx) {
-      const problem = db.getProblem(
+      const entry = db.getEntry(
         args.problem_key as string,
         args.kind as string,
       );
@@ -77,7 +77,7 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
         args.problem_key as string,
         args.kind as string,
       );
-      return JSON.stringify({ problem, occurrences, revisions }, null, 2);
+      return JSON.stringify({ entry, occurrences, revisions }, null, 2);
     },
   });
 
@@ -105,7 +105,7 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
         return `Error: outcome must be one of: ${validOutcomes.join(", ")}`;
       }
       db.addOccurrence({
-        problem_key: args.problem_key as string,
+        entry_key: args.problem_key as string,
         kind: args.kind as string,
         project_ref: (args.project_ref as string) ?? null,
         repo_ref: (args.repo_ref as string) ?? null,
@@ -148,18 +148,14 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
     },
     async execute(args, _toolCtx) {
       try {
-        db.addProblem({
-          problem_key: args.problem_key as string,
-          kind: (args.kind as string) as
-            | "dev"
-            | "devops"
-            | "planning"
-            | "testing"
-            | "architecture"
-            | "release",
-          problem: args.problem as string,
+        db.addEntry({
+          entry_key: args.problem_key as string,
+          kind: args.kind as string,
+          title: args.problem as string,
+          description: "",
           root_cause: (args.root_cause as string) ?? null,
           canonical_solution: (args.canonical_solution as string) ?? null,
+          entity_type: "problem",
           confidence: (args.confidence as number) ?? 0.0,
           review_state:
             ((args.review_state as string) as
@@ -199,27 +195,27 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
     async execute(args, _toolCtx) {
       try {
         const fields: Partial<
-        Pick<
-          ProblemEntry,
-          | "confidence"
-          | "problem"
-          | "root_cause"
-          | "canonical_solution"
-          | "review_state"
-          | "tags"
-        >
-      > = {
-        review_state: args.review_state as
-          | "draft"
-          | "reviewed"
-          | "accepted"
-          | "rejected"
-          | "superseded",
-      };
+          Pick<
+            KnowledgeEntry,
+            | "confidence"
+            | "title"
+            | "root_cause"
+            | "canonical_solution"
+            | "review_state"
+            | "tags"
+          >
+        > = {
+          review_state: args.review_state as
+            | "draft"
+            | "reviewed"
+            | "accepted"
+            | "rejected"
+            | "superseded",
+        };
         if (args.confidence !== undefined) {
           fields.confidence = args.confidence as number;
         }
-        db.updateProblem(
+        db.updateEntry(
           args.problem_key as string,
           args.kind as string,
           fields,
