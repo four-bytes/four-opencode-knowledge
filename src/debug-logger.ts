@@ -8,7 +8,7 @@ export interface DebugEvent {
   [key: string]: unknown;
 }
 
-const CACHE_DIR = join(homedir(), ".cache", "opencode", "four-opencode-{{ PLUGIN_NAME }}");
+const CACHE_DIR = join(homedir(), ".cache", "opencode", "four-opencode-knowledge");
 
 function getLogPath(): string {
   const date = new Date().toISOString().split("T")[0];
