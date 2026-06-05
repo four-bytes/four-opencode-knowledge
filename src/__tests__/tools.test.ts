@@ -182,4 +182,61 @@ describe("Knowledge Plugin Tools (via DB)", () => {
       db.updateEntry("rejected-forever", "dev", { review_state: "accepted" });
     }).toThrow("REVIEW_GATE");
   });
+
+  // 8. kb_auto_capture equivalent: entry_key derived from title slug, stored as fix
+  test("kb_auto_capture equivalent: stores entry with derived key and fix entity_type", () => {
+    const title = "SQLite WAL mode causes test isolation issues";
+    const entry_key = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+    db.addEntry({
+      entry_key,
+      kind: "dev",
+      title,
+      description: "",
+      root_cause: null,
+      canonical_solution: null,
+      entity_type: "fix",
+      confidence: 0.0,
+      review_state: "draft",
+      superseded_by: null,
+      tags: "",
+    });
+
+    const entry = db.getEntry(entry_key, "dev");
+    expect(entry).not.toBeNull();
+    expect(entry!.title).toBe(title);
+    expect(entry!.entity_type).toBe("fix");
+    expect(entry!.confidence).toBe(0.0);
+    expect(entry!.review_state).toBe("draft");
+  });
+
+  // 9. kb_stats equivalent: getStats returns correct by_entity_type breakdown
+  test("kb_stats equivalent: getStats returns correct by_entity_type breakdown", () => {
+    const entries = [
+      { entry_key: "s-pattern-1", entity_type: "pattern" },
+      { entry_key: "s-pattern-2", entity_type: "pattern" },
+      { entry_key: "s-fix-1", entity_type: "fix" },
+    ];
+
+    for (const e of entries) {
+      db.addEntry({
+        entry_key: e.entry_key,
+        kind: "dev",
+        title: `${e.entity_type} entry`,
+        description: "",
+        root_cause: null,
+        canonical_solution: null,
+        entity_type: e.entity_type,
+        confidence: 0.5,
+        review_state: "draft",
+        superseded_by: null,
+        tags: "",
+      });
+    }
+
+    const stats = db.getStats();
+    expect(stats.by_entity_type["pattern"]).toBe(2);
+    expect(stats.by_entity_type["fix"]).toBe(1);
+    expect(stats.total_entries).toBe(3);
+  });
 });
