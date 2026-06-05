@@ -11,7 +11,7 @@ describe("Knowledge Plugin Tools (via DB)", () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "knowledge-tools-"));
     const dbPath = join(tmpDir, "test.db");
-    db = KnowledgeDb.create(dbPath);
+    db = KnowledgeDb.create(dbPath, { autoSeed: false });
   });
 
   afterEach(() => {

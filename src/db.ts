@@ -196,13 +196,227 @@ class KnowledgeDb {
 
   // -- factory ---------------------------------------------------------------
 
-  static create(dbPath: string): KnowledgeDb {
+  static create(dbPath: string, options?: { autoSeed?: boolean }): KnowledgeDb {
     const db = new Database(dbPath);
     db.run("PRAGMA journal_mode = WAL");
     db.run("PRAGMA foreign_keys = ON");
     db.run("PRAGMA busy_timeout = 5000");
     KnowledgeDb.createSchema(db);
-    return new KnowledgeDb(db);
+    const instance = new KnowledgeDb(db);
+    if (options?.autoSeed !== false && instance.getStats().total_entries === 0) {
+      instance.seedInitialEntries();
+    }
+    return instance;
+  }
+
+  private seedInitialEntries(): void {
+    const entries = [
+      {
+        entry_key: "dist-missing-after-clone",
+        kind: "build",
+        title: "dist-missing-after-clone",
+        description: "After cloning any four-opencode-* plugin repo, dist/ is gitignored and absent. bun run build is required before the plugin can be loaded by opencode.",
+        root_cause: ".gitignore includes dist/. Plugin loader reads from dist/, not src/. No post-clone hook exists.",
+        canonical_solution: "Always run bun run build after cloning. Consider a Makefile or justfile with a setup target: bun install && bun run build.",
+        entity_type: "pattern" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "source-file-naming",
+        kind: "convention",
+        title: "source-file-naming",
+        description: "All four-opencode-* plugins use src/four-opencode-<pluginname>.ts as the entry point. New agents default to src/index.ts which doesn't exist.",
+        root_cause: "Convention inherited from monorepo structure. No AGENTS.md enforcement.",
+        canonical_solution: "Entry point is always src/four-opencode-<name>.ts. AGENTS.md should state this explicitly.",
+        entity_type: "convention" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "phantom-event-hook",
+        kind: "api-misunderstanding",
+        title: "phantom-event-hook",
+        description: "Agents attempt to register an event hook on the opencode Plugin-System. This hook does not exist (API supports tool, command, chat, provider).",
+        root_cause: "Agents infer or hallucinate hook names. Plugin docs don't list available hooks prominently.",
+        canonical_solution: "Available hooks: tool, command, chat, provider. No event hook exists.",
+        entity_type: "pattern" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "compaction-signal-false-positive",
+        kind: "bug",
+        title: "compaction-signal-false-positive",
+        description: "Compaction signal detector triggers on legitimate LLM output, producing 570+ false triggers in some sessions.",
+        root_cause: "Regex detection without position awareness. Pattern appears in LLM reasoning text.",
+        canonical_solution: "Gate detection on position (end-of-response), require exact block format, or use XML/tag delimiters.",
+        entity_type: "fix" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "empty-assistant-message-after-strip",
+        kind: "bug",
+        title: "empty-assistant-message-after-strip",
+        description: "After stripping compaction signal from an assistant message, resulting text can be empty. Empty messages sent to LLM API are rejected.",
+        root_cause: "Compaction signal can occupy entire assistant message. Post-strip validation missing.",
+        canonical_solution: "After signal removal, check if remaining text is empty. If so, remove turn or replace with [compaction applied].",
+        entity_type: "fix" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "vec0-so-missing-after-clone",
+        kind: "build",
+        title: "vec0-so-missing-after-clone",
+        description: "sqlite-vec extension (vec0.so) is absent after clone. Vector search silently degrades to FTS-only without error.",
+        root_cause: "Native extensions not in git. Build process compiles them but no validation step.",
+        canonical_solution: "Run full build after clone. Add startup check that logs warning if vec0.so missing.",
+        entity_type: "pattern" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "rpc-timeout-too-short-ingest",
+        kind: "config",
+        title: "rpc-timeout-too-short-ingest",
+        description: "RPC timeout for RAG ingest hardcoded to 120s. Large projects take longer, causing false timeouts.",
+        root_cause: "Hardcoded timeout without considering project size.",
+        canonical_solution: "Make ingest timeout configurable (default 300s). Consider async ingestion for >500 files.",
+        entity_type: "fix" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "foreign-request-rejection-masquerade",
+        kind: "config",
+        title: "foreign-request-rejection-masquerade",
+        description: "Claude provider sends requests with incorrect USER_AGENT header. Anthropic returns generic 'foreign request' rejection, misleading debugging.",
+        root_cause: "Provider doesn't set expected USER_AGENT format for partner integrations.",
+        canonical_solution: "Ensure USER_AGENT header matches Anthropic's expected format.",
+        entity_type: "problem" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "local-plugin-pickup-delay",
+        kind: "opencode-behavior",
+        title: "local-plugin-pickup-delay",
+        description: "After rebuilding a local plugin (bun run build), opencode continues to use old cached dist/. Full process restart required.",
+        root_cause: "opencode caches plugin modules in memory, doesn't watch dist/ for changes.",
+        canonical_solution: "After plugin rebuild, fully restart the opencode process. No hot-reload exists.",
+        entity_type: "observation" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "argocd-ksops-outofsync",
+        kind: "argocd",
+        title: "argocd-ksops-outofsync",
+        description: "ArgoCD apps using ksops show perpetual OutOfSync. Most common causes: missing .ksops.yaml or wrong kustomization pattern.",
+        root_cause: "Kustomize overlay structure doesn't match ksops expectations.",
+        canonical_solution: "Ensure .ksops.yaml exists in kustomization root. Use kustomize build . | kubectl diff -f - to validate.",
+        entity_type: "problem" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "hostport-deadlock",
+        kind: "kubernetes",
+        title: "hostport-deadlock",
+        description: "Two deadlock scenarios: hostPort+RollingUpdate, RWO PVC+maxSurge. Circular dependencies prevent rollout.",
+        root_cause: "Kubernetes scheduling constraints create circular dependencies. hostPort and RWO PVCs are exclusive per node.",
+        canonical_solution: "hostPort: use hostNetwork or Service/Ingress instead. RWO PVC: use maxSurge:0, Recreate strategy, or RWX storage.",
+        entity_type: "problem" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "reloader-arm-arch-tag",
+        kind: "container",
+        title: "reloader-arm-arch-tag",
+        description: "Stakater Reloader -ubi image tag is x86_64 only. On ARM64 clusters (Hetzner CAX), pod fails with exec format error.",
+        root_cause: "-ubi variant doesn't include ARM64 builds. Standard tag supports multi-arch.",
+        canonical_solution: "Remove -ubi suffix. Use stakater/reloader:version tag which supports both architectures.",
+        entity_type: "fix" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "dagu-ssl-client-zombies",
+        kind: "process",
+        title: "dagu-ssl-client-zombies",
+        description: "Dagu scheduler runs BusyBox ssl_client as child of PID-1. After completion, it becomes zombie (~96/day).",
+        root_cause: "BusyBox ssl_client doesn't handle lifecycle as PID-1 child. Init process must wait() on children.",
+        canonical_solution: "Add tini or dumb-init as container ENTRYPOINT to reap zombie processes.",
+        entity_type: "fix" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "argocd-ignoreDifferences-empty-list",
+        kind: "argocd",
+        title: "argocd-ignoreDifferences-empty-list",
+        description: "ArgoCD's ignoreDifferences with empty list [] is normalized to null, disabling all difference ignoring.",
+        root_cause: "Kubernetes API normalization: empty arrays become null. ArgoCD interprets null as no ignore rules.",
+        canonical_solution: "Never use ignoreDifferences: []. Either omit or populate with at least one entry.",
+        entity_type: "problem" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+      {
+        entry_key: "hetzner-gateway-dot-one",
+        kind: "networking",
+        title: "hetzner-gateway-dot-one",
+        description: "Hetzner reserves .1 address in each subnet as gateway. Assigning .1 to server causes routing failures.",
+        root_cause: "Hetzner Cloud convention: first IP in subnet is always gateway. Not prominently documented.",
+        canonical_solution: "Never assign x.x.x.1. Start server IPs at .2 or higher.",
+        entity_type: "convention" as const,
+        confidence: 0.0,
+        review_state: "draft" as const,
+        superseded_by: null,
+        tags: "seed,v1",
+      },
+    ];
+    let seeded = 0;
+    for (const entry of entries) {
+      try {
+        this.addEntry(entry);
+        seeded++;
+      } catch {
+        // skip duplicates
+      }
+    }
+    console.error(`[four-opencode-knowledge] auto-seeded ${seeded} entries`);
   }
 
   private static createFts(db: Database): void {
