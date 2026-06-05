@@ -10,7 +10,7 @@ describe("KnowledgeDb", () => {
   const dbPath = "/tmp/knowledge-test.db";
 
   beforeEach(() => {
-    db = KnowledgeDb.create(dbPath);
+    db = KnowledgeDb.create(dbPath, { autoSeed: false });
   });
 
   afterEach(() => {
@@ -23,8 +23,16 @@ describe("KnowledgeDb", () => {
 
   // 1. Schema creation
   test("creates all tables on init", () => {
-    const stats = db.getStats();
-    expect(stats.total_entries).toBe(0);
+    // auto-seeded db
+    const seededDb = KnowledgeDb.create('/tmp/knowledge-test-seeded.db');
+    const stats = seededDb.getStats();
+    expect(stats.total_entries).toBe(15);
+    seededDb.close();
+    try { unlinkSync('/tmp/knowledge-test-seeded.db'); } catch {}
+    try { unlinkSync('/tmp/knowledge-test-seeded.db-wal'); } catch {}
+    try { unlinkSync('/tmp/knowledge-test-seeded.db-shm'); } catch {}
+    // verify our clean db has 0
+    expect(db.getStats().total_entries).toBe(0);
   });
 
   // 2. addEntry - insert new entry
@@ -372,7 +380,7 @@ describe("KnowledgeDb", () => {
   test("addEntry supports all 7 entity_types", () => {
     const entityTypes = ["problem", "pattern", "convention", "decision", "observation", "fix", "summary"];
     const tmpDir2 = mkdtempSync(join(tmpdir(), "knowledge-et-"));
-    const tmpDb = KnowledgeDb.create(join(tmpDir2, "test.db"));
+    const tmpDb = KnowledgeDb.create(join(tmpDir2, "test.db"), { autoSeed: false });
 
     for (const et of entityTypes) {
       tmpDb.addEntry({
@@ -392,9 +400,13 @@ describe("KnowledgeDb", () => {
 
     const stats = tmpDb.getStats();
     expect(stats.total_entries).toBe(7);
-    for (const et of entityTypes) {
-      expect(stats.by_entity_type[et]).toBe(1);
-    }
+    expect(stats.by_entity_type["problem"]).toBe(1);
+    expect(stats.by_entity_type["pattern"]).toBe(1);
+    expect(stats.by_entity_type["convention"]).toBe(1);
+    expect(stats.by_entity_type["decision"]).toBe(1);
+    expect(stats.by_entity_type["observation"]).toBe(1);
+    expect(stats.by_entity_type["fix"]).toBe(1);
+    expect(stats.by_entity_type["summary"]).toBe(1);
 
     const fixResults = tmpDb.findEntries({ entity_type: "fix" });
     expect(fixResults.length).toBe(1);
