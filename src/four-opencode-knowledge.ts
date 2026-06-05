@@ -50,20 +50,14 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
           offset: args.offset as number | undefined,
           orderBy: (args.orderBy as FindEntriesFilter["orderBy"]) ?? "relevance",
         }),
-        null,
-        2,
       );
     },
   });
 
   const kbFindProblemAlias = tool({
     description:
-      "Lookup known problems in the knowledge store. ALWAYS call this before attempting a fix on a known issue. " +
-      "Returns ranked results with problem descriptions, root causes, canonical solutions, confidence scores, and review states. " +
-      "Use filters to narrow by kind, confidence, and review state. " +
-      "PREFER entries with review_state='accepted' AND confidence>=0.7 as trusted solutions. " +
-      "AVOID entries with review_state='rejected' or 'superseded'. " +
-      "Check occurrences with outcome='failed' as bad_attempts to avoid repeating them.",
+      "Alias for kb_search with entity_type='problem'. Lookup known problems before fixing. " +
+      "Returns ranked problem entries with root causes, solutions, and confidence scores.",
     args: {
       query: tool.schema.string(),
       kind: tool.schema.string().optional(),
@@ -85,8 +79,6 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
           offset: args.offset as number | undefined,
           orderBy: (args.orderBy as FindEntriesFilter["orderBy"]) ?? "relevance",
         }),
-        null,
-        2,
       );
     },
   });
@@ -103,15 +95,14 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
       const entry = db.getEntry(args.entry_key as string, args.kind as string);
       const occurrences = db.getOccurrences(args.entry_key as string, args.kind as string);
       const revisions = db.getRevisionHistory(args.entry_key as string, args.kind as string);
-      return JSON.stringify({ entry, occurrences, revisions }, null, 2);
+      return JSON.stringify({ entry, occurrences, revisions });
     },
   });
 
   const kbFindSolutionAlias = tool({
     description:
-      "Get the canonical solution and occurrence history for a specific problem_key. " +
-      "Returns the full problem entry plus all recorded occurrences (with outcomes: fixed, failed, workaround, observed). " +
-      "Use this AFTER kb_search to get detailed context before implementing a fix.",
+      "Alias for kb_get with entity_type='problem'. Returns canonical solution + occurrences by problem_key. " +
+      "Use after kb_search to get detailed context before implementing a fix.",
     args: {
       problem_key: tool.schema.string(),
       kind: tool.schema.string(),
@@ -120,7 +111,7 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
       const entry = db.getEntry(args.problem_key as string, args.kind as string);
       const occurrences = db.getOccurrences(args.problem_key as string, args.kind as string);
       const revisions = db.getRevisionHistory(args.problem_key as string, args.kind as string);
-      return JSON.stringify({ entry, occurrences, revisions }, null, 2);
+      return JSON.stringify({ entry, occurrences, revisions });
     },
   });
 
@@ -316,41 +307,15 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
       "Get knowledge store overview: total entries, by entity_type breakdown, accepted/draft counts, avg confidence.",
     args: {},
     async execute(_args, _toolCtx) {
-      return JSON.stringify(db.getStats(), null, 2);
+      return JSON.stringify(db.getStats());
     },
   });
 
   const systemPrompt = (_ctx: any) => {
     return [
-      'KNOWLEDGE PLUGIN — General-Purpose Knowledge Base',
-      'Entity types: problem, pattern, convention, decision, observation, fix, summary',
-      '',
-      'LOOKUP (always search first):',
-      '- kb_search: Find entries by query + filters (entity_type, kind, confidence, review_state)',
-      '- kb_get: Get full entry + occurrence history + revisions',
-      '- kb_stats: Store overview (total, by_entity_type, accepted, avg_confidence)',
-      '',
-      'ADD:',
-      '- kb_add_entry: Full knowledge entry (title, description, root_cause, canonical_solution)',
-      '- kb_auto_capture: Quick-add after completing work (simplified, no root_cause)',
-      '',
-      'RECORD OUTCOMES:',
-      '- kb_record_occurrence: Record what happened (fixed/failed/workaround/observed)',
-      '',
-      'REVIEW:',
-      '- kb_review_entry: Promote or reject entries (draft→reviewed→accepted)',
-      '',
-      'AUTO-CAPTURE TRIGGERS (agents MUST call kb_auto_capture after):',
-      '  1. Fixing a bug → entity_type="fix", title=<what was fixed>, description=<how>',
-      '  2. Making an architectural decision → entity_type="decision", title=<decision>, description=<rationale>',
-      '  3. Discovering a reusable pattern → entity_type="pattern", title=<pattern>, description=<description>',
-      '  4. Completing a significant task (>5 tool calls) → entity_type="summary", title=<task>, description=<key takeaways>',
-      '  5. Observing non-obvious behavior → entity_type="observation", title=<observation>, description=<context>',
-      '',
-      'TRUSTED SOLUTIONS: review_state="accepted" AND confidence>=0.7',
-      'Check occurrences with outcome="failed" as bad_attempts before attempting a fix.',
-      'New entries → draft only. Promote after CI-green + smoke>=+2.',
-      'Confidence gate: higher-confidence entries override lower ones.',
+      'KNOWLEDGE PLUGIN: problem/pattern/convention/decision/observation/fix/summary. Search first (kb_search).',
+      'Get details (kb_get). Record outcomes (kb_record_occurrence). Review/promote (kb_review_entry).',
+      'kb_auto_capture after completing work. Trusted: review_state=accepted AND confidence>=0.7. New entries always draft.',
     ].join('\n');
   };
 
