@@ -1,13 +1,16 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import KnowledgeDb, { type KnowledgeEntry } from "../db.js";
-import { unlinkSync } from "node:fs";
+import { unlinkSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Database } from "bun:sqlite";
 
 describe("KnowledgeDb", () => {
   let db: KnowledgeDb;
   const dbPath = "/tmp/knowledge-test.db";
 
   beforeEach(() => {
-    db = KnowledgeDb.create(dbPath);
+    db = KnowledgeDb.create(dbPath, { autoSeed: false });
   });
 
   afterEach(() => {
@@ -20,8 +23,16 @@ describe("KnowledgeDb", () => {
 
   // 1. Schema creation
   test("creates all tables on init", () => {
-    const stats = db.getStats();
-    expect(stats.total_entries).toBe(0);
+    // auto-seeded db
+    const seededDb = KnowledgeDb.create('/tmp/knowledge-test-seeded.db');
+    const stats = seededDb.getStats();
+    expect(stats.total_entries).toBe(15);
+    seededDb.close();
+    try { unlinkSync('/tmp/knowledge-test-seeded.db'); } catch {}
+    try { unlinkSync('/tmp/knowledge-test-seeded.db-wal'); } catch {}
+    try { unlinkSync('/tmp/knowledge-test-seeded.db-shm'); } catch {}
+    // verify our clean db has 0
+    expect(db.getStats().total_entries).toBe(0);
   });
 
   // 2. addEntry - insert new entry
@@ -363,5 +374,186 @@ describe("KnowledgeDb", () => {
     expect(() => {
       db.updateEntry("review-gate", "dev", { review_state: "draft" });
     }).toThrow("REVIEW_GATE");
+  });
+
+  // 13. addEntry with all 7 entity_types
+  test("addEntry supports all 7 entity_types", () => {
+    const entityTypes = ["problem", "pattern", "convention", "decision", "observation", "fix", "summary"];
+    const tmpDir2 = mkdtempSync(join(tmpdir(), "knowledge-et-"));
+    const tmpDb = KnowledgeDb.create(join(tmpDir2, "test.db"), { autoSeed: false });
+
+    for (const et of entityTypes) {
+      tmpDb.addEntry({
+        entry_key: `et-${et}`,
+        kind: "dev",
+        title: `${et} entry`,
+        description: "",
+        root_cause: null,
+        canonical_solution: null,
+        entity_type: et,
+        confidence: 0.5,
+        review_state: "draft",
+        superseded_by: null,
+        tags: "",
+      });
+    }
+
+    const stats = tmpDb.getStats();
+    expect(stats.total_entries).toBe(7);
+    expect(stats.by_entity_type["problem"]).toBe(1);
+    expect(stats.by_entity_type["pattern"]).toBe(1);
+    expect(stats.by_entity_type["convention"]).toBe(1);
+    expect(stats.by_entity_type["decision"]).toBe(1);
+    expect(stats.by_entity_type["observation"]).toBe(1);
+    expect(stats.by_entity_type["fix"]).toBe(1);
+    expect(stats.by_entity_type["summary"]).toBe(1);
+
+    const fixResults = tmpDb.findEntries({ entity_type: "fix" });
+    expect(fixResults.length).toBe(1);
+    expect(fixResults[0].entity_type).toBe("fix");
+
+    tmpDb.close();
+    rmSync(tmpDir2, { recursive: true, force: true });
+  });
+
+  // 14. findEntries filters by entity_type
+  test("findEntries filters by entity_type", () => {
+    db.addEntry({ entry_key: "et-pattern", kind: "dev", title: "pattern entry", description: "", root_cause: null, canonical_solution: null, entity_type: "pattern", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+    db.addEntry({ entry_key: "et-fix", kind: "dev", title: "fix entry", description: "", root_cause: null, canonical_solution: null, entity_type: "fix", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+    db.addEntry({ entry_key: "et-convention", kind: "dev", title: "convention entry", description: "", root_cause: null, canonical_solution: null, entity_type: "convention", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+
+    const results = db.findEntries({ entity_type: "pattern" });
+    expect(results.length).toBe(1);
+    expect(results[0].entity_type).toBe("pattern");
+
+    const all = db.findEntries({});
+    expect(all.length).toBe(3);
+  });
+
+  // 15. findEntries entity_type filter returns empty for no match
+  test("findEntries returns empty when entity_type has no entries", () => {
+    db.addEntry({ entry_key: "only-problem", kind: "dev", title: "a problem", description: "", root_cause: null, canonical_solution: null, entity_type: "problem", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+    const results = db.findEntries({ entity_type: "fix" });
+    expect(results.length).toBe(0);
+  });
+
+  // 16. Schema migration from old problems table
+  test("schema migration from old problems table preserves data", () => {
+    const migDir = mkdtempSync(join(tmpdir(), "knowledge-migration-"));
+    const migPath = join(migDir, "legacy.db");
+
+    const rawDb = new Database(migPath);
+    rawDb.run("PRAGMA journal_mode = WAL");
+    rawDb.run(`CREATE TABLE problems (
+      problem_key TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      problem TEXT NOT NULL,
+      root_cause TEXT,
+      canonical_solution TEXT,
+      confidence REAL NOT NULL DEFAULT 0.0,
+      review_state TEXT NOT NULL DEFAULT 'draft',
+      superseded_by TEXT,
+      tags TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (problem_key, kind)
+    )`);
+    rawDb.run(`CREATE TABLE occurrences (
+      id TEXT PRIMARY KEY,
+      problem_key TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      project_ref TEXT,
+      repo_ref TEXT,
+      issue_ref TEXT,
+      commit_ref TEXT,
+      observed_symptoms TEXT,
+      outcome TEXT,
+      occurred_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+    rawDb.run(`CREATE TABLE revisions (
+      id TEXT PRIMARY KEY,
+      problem_key TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      field_name TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      confidence_at_time REAL,
+      review_state_at_time TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+    rawDb.run("INSERT INTO problems (problem_key, kind, problem, confidence, review_state) VALUES ('old-key', 'dev', 'Legacy problem title', 0.7, 'draft')");
+    rawDb.close();
+
+    const migratedDb = KnowledgeDb.create(migPath);
+    const entry = migratedDb.getEntry("old-key", "dev");
+    expect(entry).not.toBeNull();
+    expect(entry!.entry_key).toBe("old-key");
+    expect(entry!.title).toBe("Legacy problem title");
+    expect(entry!.entity_type).toBe("problem");
+
+    // Idempotency: second create() must not throw or duplicate
+    migratedDb.close();
+    const db2 = KnowledgeDb.create(migPath);
+    const entry2 = db2.getEntry("old-key", "dev");
+    expect(entry2).not.toBeNull();
+    expect(db2.getStats().total_entries).toBe(1);
+    db2.close();
+
+    rmSync(migDir, { recursive: true, force: true });
+  });
+
+  // 17. auto_capture flow: stores fix entry with initial draft/0.0 values
+  test("auto_capture flow: stores fix entry with draft state and zero confidence", () => {
+    db.addEntry({
+      entry_key: "bun-circular-import-hang",
+      kind: "dev",
+      title: "Bun test runner hangs on circular imports",
+      description: "",
+      root_cause: null,
+      canonical_solution: null,
+      entity_type: "fix",
+      confidence: 0.0,
+      review_state: "draft",
+      superseded_by: null,
+      tags: "",
+    });
+    const entry = db.getEntry("bun-circular-import-hang", "dev");
+    expect(entry).not.toBeNull();
+    expect(entry!.entity_type).toBe("fix");
+    expect(entry!.confidence).toBe(0.0);
+    expect(entry!.review_state).toBe("draft");
+    expect(entry!.root_cause).toBeNull();
+    expect(entry!.canonical_solution).toBeNull();
+  });
+
+  // 18. getStats by_entity_type counts accurately
+  test("getStats by_entity_type counts accurately", () => {
+    for (let i = 1; i <= 2; i++) {
+      db.addEntry({ entry_key: `pattern-${i}`, kind: "dev", title: `pattern ${i}`, description: "", root_cause: null, canonical_solution: null, entity_type: "pattern", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+    }
+    for (let i = 1; i <= 3; i++) {
+      db.addEntry({ entry_key: `fix-${i}`, kind: "dev", title: `fix ${i}`, description: "", root_cause: null, canonical_solution: null, entity_type: "fix", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+    }
+    db.addEntry({ entry_key: "prob-1", kind: "dev", title: "problem 1", description: "", root_cause: null, canonical_solution: null, entity_type: "problem", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+
+    const stats = db.getStats();
+    expect(stats.by_entity_type["pattern"]).toBe(2);
+    expect(stats.by_entity_type["fix"]).toBe(3);
+    expect(stats.by_entity_type["problem"]).toBe(1);
+    expect(stats.total_entries).toBe(6);
+  });
+
+  // 19. Backward compat: findEntries filters by free-text kind values
+  test("findEntries filters by free-text kind (build, argocd)", () => {
+    db.addEntry({ entry_key: "build-issue-1", kind: "build", title: "build issue", description: "", root_cause: null, canonical_solution: null, entity_type: "problem", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+    db.addEntry({ entry_key: "argocd-issue-1", kind: "argocd", title: "argocd issue", description: "", root_cause: null, canonical_solution: null, entity_type: "problem", confidence: 0.5, review_state: "draft", superseded_by: null, tags: "" });
+
+    const buildResults = db.findEntries({ kind: "build" });
+    expect(buildResults.length).toBe(1);
+    expect(buildResults[0].kind).toBe("build");
+
+    const argocdResults = db.findEntries({ kind: "argocd" });
+    expect(argocdResults.length).toBe(1);
+    expect(argocdResults[0].kind).toBe("argocd");
   });
 });

@@ -1,7 +1,7 @@
 {
   "name": "@four-bytes/four-opencode-knowledge",
-  "version": "0.1.0",
-  "description": "Structured Problem-Solution Knowledge Store with SQLite+FTS5 and Confidence-Gating for OpenCode agents",
+  "version": "0.3.1",
+  "description": "General-Purpose Knowledge Base with SQLite+FTS5 and Confidence-Gating for OpenCode agents — captures problems, patterns, conventions, decisions, observations, fixes, and summaries.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "dist/four-opencode-knowledge.js",
@@ -9,7 +9,11 @@
     "build": "bun build src/four-opencode-knowledge.ts --outdir=dist --target=bun",
     "test": "bun test"
   },
-  "keywords": ["opencode", "opencode-plugin", "four-bytes"],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "four-bytes"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/four-bytes/four-opencode-knowledge.git"
