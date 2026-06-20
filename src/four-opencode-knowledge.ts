@@ -8,7 +8,7 @@ import { logDebugEvent } from "./debug-logger.js";
 import pkg from "../package.json";
 
 export const FourOpenCodeKnowledgePlugin: Plugin = async (ctx) => {
-  console.error(`[four-opencode-knowledge] v${pkg.version} loading…`);
+  console.log(`[four-opencode-knowledge] v${pkg.version} loading…`);
 
   const { client, directory } = ctx;
   const log = (level: "debug" | "info" | "warn" | "error", message: string, extra?: Record<string, unknown>) => {
