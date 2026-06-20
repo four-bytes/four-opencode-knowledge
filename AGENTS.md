@@ -1,6 +1,6 @@
 # knowledge — AGENTS.md
 
-Pointer to central standards: `~/.personal-config/ai-shared/AGENTS.md` and Meta-Repo `four-bytes/opencode-plugins` AGENTS.md.
+Pointer to central standards: `~/ai-shared-rules/AGENTS.md` and Meta-Repo `four-bytes/opencode-plugins` AGENTS.md.
 
 ## Convention
 - Source file: `src/four-opencode-knowledge.ts` (NOT `src/index.ts`)
@@ -14,7 +14,7 @@ Pointer to central standards: `~/.personal-config/ai-shared/AGENTS.md` and Meta-
 - `dist/` is gitignored, rebuilt fresh during `npm publish`
 
 ## Standards
-`~/.personal-config/ai-shared/AGENTS.md`
+`~/ai-shared-rules/AGENTS.md`
 
 ## This Plugin
 - Plugin name: knowledge
@@ -23,3 +23,5 @@ Pointer to central standards: `~/.personal-config/ai-shared/AGENTS.md` and Meta-
 
 ## Workflow
 Issues → Branch → PR → Merge (Feature Workflow)
+
+- **Console logging:** Plugins MUST use `_client?.app?.log()` for all logging in plugin mode — `console.log` / `console.warn` / `console.error` is ONLY permitted for the initial startup `"init"` message. Console output in plugin mode breaks the terminal UI.
