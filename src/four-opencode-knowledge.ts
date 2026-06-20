@@ -7,8 +7,13 @@ import KnowledgeDb, { type FindEntriesFilter, type KnowledgeEntry } from "./db.j
 import { logDebugEvent } from "./debug-logger.js";
 import pkg from "../package.json";
 
-export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
+export const FourOpenCodeKnowledgePlugin: Plugin = async (ctx) => {
   console.error(`[four-opencode-knowledge] v${pkg.version} loading…`);
+
+  const { client, directory } = ctx;
+  const log = (level: "debug" | "info" | "warn" | "error", message: string, extra?: Record<string, unknown>) => {
+    client.app.log({ service: "four-knowledge", level, message, extra: extra as Record<string, unknown> }).catch(() => {});
+  };
 
   const dataDir =
     process.env.FOUR_KNOWLEDGE_DATA_DIR ??
@@ -18,7 +23,7 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
   }
   const dbPath = join(dataDir, "knowledge.db");
   const db = KnowledgeDb.create(dbPath);
-  console.error(`[four-opencode-knowledge] DB at ${dbPath}`);
+  log("info", `DB at ${dbPath}`);
   logDebugEvent("plugin.load", { dbPath, version: pkg.version });
 
   const kbSearch = tool({
@@ -319,7 +324,7 @@ export const FourOpenCodeKnowledgePlugin: Plugin = async (_ctx) => {
     ].join('\n');
   };
 
-  console.error(`[four-opencode-knowledge] ready`);
+  log("info", "ready");
   logDebugEvent("plugin.ready", {});
 
   return {

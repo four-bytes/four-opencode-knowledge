@@ -24,4 +24,4 @@ Pointer to central standards: `~/ai-shared-rules/AGENTS.md` and Meta-Repo `four-
 ## Workflow
 Issues → Branch → PR → Merge (Feature Workflow)
 
-- **Console logging:** Plugins MUST use `_client?.app?.log()` for all logging in plugin mode — `console.log` / `console.warn` / `console.error` is ONLY permitted for the initial startup `"init"` message. Console output in plugin mode breaks the terminal UI.
+- **Console logging:** Plugins MUST use `client.app.log()` for all logging in plugin mode — `console.log` / `console.warn` / `console.error` is ONLY permitted for the initial startup `"init"` message. Console output in plugin mode breaks the terminal UI.
